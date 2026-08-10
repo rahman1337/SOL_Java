@@ -18,19 +18,25 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <repositories>
+        <!-- Maven Central -->
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <!-- Solflare/Solana Labs -->
+        <repository>
+            <id>solana-labs</id>
+            <url>https://mvn.neonlabs.org/repository/maven-releases</url>
+        </repository>
+    </repositories>
+
     <dependencies>
-        <!-- BIP39 Mnemonic -->
+        <!-- BIP39 Mnemonic - bitcoinj -->
         <dependency>
             <groupId>org.bitcoinj</groupId>
             <artifactId>bitcoinj-core</artifactId>
             <version>0.15.10</version>
-        </dependency>
-
-        <!-- Solana Web3 -->
-        <dependency>
-            <groupId>com.solana</groupId>
-            <artifactId>solana-web3</artifactId>
-            <version>0.2.2</version>
         </dependency>
 
         <!-- HTTP Client -->
@@ -65,10 +71,36 @@
             <artifactId>eddsa</artifactId>
             <version>0.3.0</version>
         </dependency>
+
+        <!-- Bouncy Castle - Cryptography -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>1.70</version>
+        </dependency>
+
+        <!-- Base58 encoding -->
+        <dependency>
+            <groupId>org.bitcoinj</groupId>
+            <artifactId>bitcoinj-core</artifactId>
+            <version>0.15.10</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
+
+            <!-- Shade Plugin - Create Fat JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -85,9 +117,24 @@
                                     <mainClass>com.solana.scanner.SolanaWalletScanner</mainClass>
                                 </transformer>
                             </transformers>
+                            <finalName>wallet-scanner-1.0.0-jar-with-dependencies</finalName>
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- JAR Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.solana.scanner.SolanaWalletScanner</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
             </plugin>
         </plugins>
     </build>
