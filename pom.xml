@@ -19,15 +19,9 @@
     </properties>
 
     <repositories>
-        <!-- Maven Central -->
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-        <!-- Solflare/Solana Labs -->
-        <repository>
-            <id>solana-labs</id>
-            <url>https://mvn.neonlabs.org/repository/maven-releases</url>
         </repository>
     </repositories>
 
@@ -78,13 +72,6 @@
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.70</version>
         </dependency>
-
-        <!-- Base58 encoding -->
-        <dependency>
-            <groupId>org.bitcoinj</groupId>
-            <artifactId>bitcoinj-core</artifactId>
-            <version>0.15.10</version>
-        </dependency>
     </dependencies>
 
     <build>
@@ -100,25 +87,30 @@
                 </configuration>
             </plugin>
 
-            <!-- Shade Plugin - Create Fat JAR -->
+            <!-- Assembly Plugin - Create Fat JAR without signature issues -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.0</version>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.solana.scanner.SolanaWalletScanner</mainClass>
+                            <addClasspath>true</addClasspath>
+                        </manifest>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <finalName>wallet-scanner-1.0.0</finalName>
+                    <appendAssemblyId>true</appendAssemblyId>
+                </configuration>
                 <executions>
                     <execution>
                         <phase>package</phase>
                         <goals>
-                            <goal>shade</goal>
+                            <goal>single</goal>
                         </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.solana.scanner.SolanaWalletScanner</mainClass>
-                                </transformer>
-                            </transformers>
-                            <finalName>wallet-scanner-1.0.0-jar-with-dependencies</finalName>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
