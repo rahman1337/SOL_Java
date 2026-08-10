@@ -50,6 +50,7 @@ public class SolanaWalletScanner {
             scheduler.scheduleAtFixedRate(() -> {
                 dashboard.setTryCount(tryCount.get());
                 dashboard.setHitCount(hitCount.get());
+                dashboard.setErrorCount(errorCount.get());
                 dashboard.run();
             }, 0, 100, TimeUnit.MILLISECONDS);
             
@@ -99,11 +100,9 @@ public class SolanaWalletScanner {
                 String mnemonic = generateMnemonic();
                 tryCount.incrementAndGet();
                 
-                // Validate mnemonic
+                // Validate mnemonic - silently skip if invalid
                 if (!BIP39Validator.isValid(mnemonic)) {
-                    errorCount.incrementAndGet();
-                    logError("Invalid mnemonic generated: " + mnemonic);
-                    continue;
+                    continue; // Skip invalid mnemonics silently
                 }
                 
                 // Derive Solana address
@@ -111,18 +110,17 @@ public class SolanaWalletScanner {
                 try {
                     address = SolanaAddressDeriver.deriveAddress(mnemonic, 0);
                 } catch (Exception e) {
-                    errorCount.incrementAndGet();
-                    logError("Failed to derive address for mnemonic " + mnemonic + ": " + e.getMessage());
+                    // Silently skip derivation errors
                     continue;
                 }
                 
-                // Check balance
+                // Check balance - log RPC/network errors only
                 double balance;
                 try {
                     balance = BalanceChecker.getBalance(address, RPC_URL);
                 } catch (Exception e) {
                     errorCount.incrementAndGet();
-                    logError("Failed to check balance for " + address + ": " + e.getMessage());
+                    logError("RPC/Balance Error for " + address + ": " + e.getMessage());
                     continue;
                 }
                 
@@ -138,8 +136,7 @@ public class SolanaWalletScanner {
                 }
                 
             } catch (Exception e) {
-                errorCount.incrementAndGet();
-                logError("Unexpected error in scan task: " + e.getMessage());
+                // Silently skip unexpected errors
             }
         }
     }

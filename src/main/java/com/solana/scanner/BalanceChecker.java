@@ -7,21 +7,60 @@ import java.util.concurrent.TimeUnit;
 
 public class BalanceChecker {
     
+    // Multiple RPC endpoints for failover
+    private static final String[] RPC_URLS = {
+        "https://solana-rpc.publicnode.com",
+        "https://api.mainnet-beta.solana.com",
+        "https://rpc.ankr.com/solana",
+        "https://solana-api.projectserum.com"
+    };
+    
+    private static int currentRpcIndex = 0;
+    private static final Object rpcLock = new Object();
+    
     private static final OkHttpClient httpClient = new OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build();
     
     /**
-     * Get balance of Solana address using RPC
+     * Get balance of Solana address using RPC with automatic failover
      */
-    public static double getBalance(String address, String rpcUrl) throws Exception {
+    public static double getBalance(String address, String primaryRpcUrl) throws Exception {
+        int maxRetries = 3;
+        Exception lastException = null;
+        
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                // Try primary RPC first, then fallback to alternatives
+                String rpcUrl = (attempt == 0) ? primaryRpcUrl : getNextRpcUrl();
+                return checkBalanceOnRpc(address, rpcUrl);
+                
+            } catch (Exception e) {
+                lastException = e;
+                
+                // Log retry attempt
+                if (attempt < maxRetries - 1) {
+                    System.err.println("[RETRY] Attempt " + (attempt + 1) + "/" + maxRetries + " failed, retrying...");
+                    Thread.sleep(500 * (attempt + 1)); // Exponential backoff
+                }
+            }
+        }
+        
+        // All retries failed
+        throw new Exception("Balance check failed after " + maxRetries + " attempts: " + lastException.getMessage(), lastException);
+    }
+    
+    /**
+     * Check balance on specific RPC endpoint
+     */
+    private static double checkBalanceOnRpc(String address, String rpcUrl) throws Exception {
         try {
             JsonObject payload = new JsonObject();
             payload.addProperty("jsonrpc", "2.0");
-            payload.addProperty("id", 1);
+            payload.addProperty("id", System.nanoTime());
             payload.addProperty("method", "getBalance");
             
             com.google.gson.JsonArray paramArray = new com.google.gson.JsonArray();
@@ -37,36 +76,59 @@ public class BalanceChecker {
                     .build();
             
             try (Response response = httpClient.newCall(request).execute()) {
+                
+                // Check HTTP status
                 if (!response.isSuccessful()) {
-                    throw new Exception("RPC error: HTTP " + response.code());
+                    throw new Exception("HTTP " + response.code() + " from " + rpcUrl);
                 }
                 
                 if (response.body() == null) {
-                    throw new Exception("RPC returned empty response");
+                    throw new Exception("Empty response from RPC");
                 }
                 
                 String responseBody = response.body().string();
                 
-                // Check for RPC errors
-                if (responseBody.contains("error")) {
-                    JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
-                    if (jsonResponse.has("error")) {
-                        throw new Exception("RPC error: " + jsonResponse.get("error").toString());
-                    }
+                // Parse JSON
+                JsonObject jsonResponse;
+                try {
+                    jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
+                } catch (Exception e) {
+                    throw new Exception("Invalid JSON response: " + responseBody.substring(0, Math.min(100, responseBody.length())));
                 }
                 
-                JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
-                
-                if (jsonResponse.has("result")) {
-                    long lamports = jsonResponse.get("result").getAsLong();
-                    return lamports / 1_000_000_000.0; // Convert lamports to SOL
+                // Check for RPC error response
+                if (jsonResponse.has("error")) {
+                    JsonObject error = jsonResponse.getAsJsonObject("error");
+                    String errorMsg = error.has("message") ? error.get("message").getAsString() : error.toString();
+                    throw new Exception("RPC Error: " + errorMsg);
                 }
                 
-                throw new Exception("No result in RPC response");
+                // Extract result
+                if (!jsonResponse.has("result")) {
+                    throw new Exception("No result in RPC response");
+                }
+                
+                long lamports = jsonResponse.get("result").getAsLong();
+                return lamports / 1_000_000_000.0; // Convert lamports to SOL
             }
             
+        } catch (java.net.SocketTimeoutException e) {
+            throw new Exception("RPC timeout on " + rpcUrl, e);
+        } catch (java.net.ConnectException e) {
+            throw new Exception("Connection failed to " + rpcUrl, e);
         } catch (Exception e) {
-            throw new Exception("Balance check failed for " + address + ": " + e.getMessage(), e);
+            throw new Exception("RPC check failed on " + rpcUrl + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Get next available RPC URL for failover
+     */
+    private static String getNextRpcUrl() {
+        synchronized (rpcLock) {
+            String url = RPC_URLS[currentRpcIndex];
+            currentRpcIndex = (currentRpcIndex + 1) % RPC_URLS.length;
+            return url;
         }
     }
     
