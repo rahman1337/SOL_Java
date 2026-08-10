@@ -5,10 +5,12 @@ public class DashboardUpdater implements Runnable {
     private long tryCount;
     private long hitCount;
     private long lastUpdateTime;
+    private long errorCount;
     
     public DashboardUpdater(long tryCount, long hitCount) {
         this.tryCount = tryCount;
         this.hitCount = hitCount;
+        this.errorCount = 0;
         this.lastUpdateTime = System.currentTimeMillis();
     }
     
@@ -28,6 +30,7 @@ public class DashboardUpdater implements Runnable {
         StringBuilder sb = new StringBuilder();
         sb.append("\rTries: ").append(formatNumber(tryCount));
         sb.append(" | Hits: ").append(formatNumber(hitCount));
+        sb.append(" | Errors: ").append(formatNumber(errorCount));
         
         System.out.print(sb.toString());
         System.out.flush();
@@ -48,5 +51,9 @@ public class DashboardUpdater implements Runnable {
     
     public void setHitCount(long count) {
         this.hitCount = count;
+    }
+    
+    public void setErrorCount(long count) {
+        this.errorCount = count;
     }
 }

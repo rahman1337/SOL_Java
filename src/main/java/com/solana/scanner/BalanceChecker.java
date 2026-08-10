@@ -37,11 +37,24 @@ public class BalanceChecker {
                     .build();
             
             try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    return 0.0;
+                if (!response.isSuccessful()) {
+                    throw new Exception("RPC error: HTTP " + response.code());
+                }
+                
+                if (response.body() == null) {
+                    throw new Exception("RPC returned empty response");
                 }
                 
                 String responseBody = response.body().string();
+                
+                // Check for RPC errors
+                if (responseBody.contains("error")) {
+                    JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
+                    if (jsonResponse.has("error")) {
+                        throw new Exception("RPC error: " + jsonResponse.get("error").toString());
+                    }
+                }
+                
                 JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
                 
                 if (jsonResponse.has("result")) {
@@ -49,11 +62,11 @@ public class BalanceChecker {
                     return lamports / 1_000_000_000.0; // Convert lamports to SOL
                 }
                 
-                return 0.0;
+                throw new Exception("No result in RPC response");
             }
             
         } catch (Exception e) {
-            return 0.0;
+            throw new Exception("Balance check failed for " + address + ": " + e.getMessage(), e);
         }
     }
     
@@ -64,7 +77,12 @@ public class BalanceChecker {
         double[] balances = new double[addresses.length];
         
         for (int i = 0; i < addresses.length; i++) {
-            balances[i] = getBalance(addresses[i], rpcUrl);
+            try {
+                balances[i] = getBalance(addresses[i], rpcUrl);
+            } catch (Exception e) {
+                System.err.println("Error checking balance for " + addresses[i] + ": " + e.getMessage());
+                balances[i] = 0.0;
+            }
             
             // Rate limiting
             Thread.sleep(50);
