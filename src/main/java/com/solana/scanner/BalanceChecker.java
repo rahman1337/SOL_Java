@@ -24,11 +24,6 @@ public class BalanceChecker {
             payload.addProperty("id", 1);
             payload.addProperty("method", "getBalance");
             
-            JsonObject params = new JsonObject();
-            params.add("params", new com.google.gson.JsonArray());
-            JsonObject paramObj = new JsonObject();
-            paramObj.addProperty("encoding", "base64");
-            
             com.google.gson.JsonArray paramArray = new com.google.gson.JsonArray();
             paramArray.add(address);
             payload.add("params", paramArray);
@@ -42,7 +37,7 @@ public class BalanceChecker {
                     .build();
             
             try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
+                if (!response.isSuccessful() || response.body() == null) {
                     return 0.0;
                 }
                 
@@ -58,7 +53,6 @@ public class BalanceChecker {
             }
             
         } catch (Exception e) {
-            System.err.println("Error checking balance for " + address + ": " + e.getMessage());
             return 0.0;
         }
     }
